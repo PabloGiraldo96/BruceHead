@@ -20,7 +20,7 @@ export default function App() {
     timer.current = setTimeout(() => setPhase("media"), FADE_MS + HOLD_MS);
   }, []);
 
-  const start = () => (REDUCED ? toBlack() : setPhase("diving"));
+const start = () => setPhase("diving");
 
   const restart = () => {
     clearTimeout(timer.current);

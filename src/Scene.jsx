@@ -1,11 +1,26 @@
 import { PresentationControls } from "@react-three/drei";
+import { useThree } from "@react-three/fiber";
 import { PerspectiveCamera, SheetProvider } from "@theatre/r3f";
-import { Suspense, useState } from "react";
+import { Suspense, useState, useLayoutEffect } from "react";
 import { Cat } from "./Cat";
 import { EyeDive } from "./EyeDive";
-import { EDIT, sheet } from "./theatre";
+import { EDIT, sheet, hasState } from "./theatre";
 
 export const CAMERA_START = [0, 0.15, 5.2];
+
+function FitCamera({ active }) {
+  const camera = useThree((s) => s.camera);
+  const aspect = useThree((s) => s.size.width / s.size.height);
+
+  useLayoutEffect(() => {
+    if (!active) return;
+    const half = Math.tan((30 * Math.PI) / 360); // fov 30°
+    const dist = Math.max(CAMERA_START[2], 1.15 / (half * aspect));
+    camera.position.set(CAMERA_START[0], CAMERA_START[1], dist);
+  }, [active, aspect, camera]);
+
+  return null;
+}
 
 export default function Scene({ phase, onDiveDone }) {
   const [rig, setRig] = useState(null);
@@ -21,7 +36,7 @@ export default function Scene({ phase, onDiveDone }) {
         near={0.01}
         far={100}
       />
-
+      <FitCamera active={phase === "idle" && !EDIT && !hasState} />
       <hemisphereLight args={["#ffffff", "#5a5048", 1.1]} />
       <directionalLight position={[3, 4, 5]} intensity={2.2} />
       <directionalLight position={[-4, 1, -2]} intensity={0.6} />

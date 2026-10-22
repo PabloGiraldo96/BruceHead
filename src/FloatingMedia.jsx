@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MEDIA } from "./media";
 import "./FloatingMedia.css";
 
@@ -12,6 +12,22 @@ const Z_MAX = 180; // lo más cercano
 const PAN = 0.22; // cuánto se desplaza el campo con el cursor
 const TILT = 7; // grados de inclinación del campo
 const FOLLOW = 3.5; // suavizado: más alto = sigue el cursor más rápido
+
+// Si el sistema pide "reducir movimiento" no lo apagamos: lo suavizamos a la mitad.
+const MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0.5 : 1;
+
+// Se actualiza si cambias el tamaño de la ventana (o rotas el celular)
+function useSmallScreen() {
+  const [small, setSmall] = useState(() => window.innerWidth < 640);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const on = () => setSmall(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return small;
+}
 
 function rng(seed) {
   let a = seed;
@@ -34,11 +50,11 @@ function shuffle(arr, rnd) {
 export default function FloatingMedia() {
   const layerRef = useRef(null);
   const worldRef = useRef(null);
+  const small = useSmallScreen();
 
   // --- Reparto de las piezas en 3D ---
   const items = useMemo(() => {
     const rnd = rng(23);
-    const small = window.innerWidth < 640;
     const count = small ? COUNT_MOBILE : COUNT_DESKTOP;
 
     // Repite los archivos hasta llenar y los mezcla (los videos no quedan juntos)
@@ -88,13 +104,12 @@ export default function FloatingMedia() {
         },
       };
     });
-  }, []);
+  }, [small]);
 
   // --- El campo sigue al cursor (un solo bucle, sin re-render de React) ---
   useEffect(() => {
     const world = worldRef.current;
     if (!world) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const target = { x: 0, y: 0 };
     const cur = { x: 0, y: 0 };
@@ -108,8 +123,15 @@ export default function FloatingMedia() {
     const onLeave = () => {
       hasPointer = false;
     };
+    // Al levantar el dedo el campo vuelve a mecerse solo
+    const onUp = (e) => {
+      if (e.pointerType !== "mouse") hasPointer = false;
+    };
 
     window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("pointerdown", onMove, { passive: true });
+    window.addEventListener("pointerup", onUp, { passive: true });
+    window.addEventListener("pointercancel", onUp, { passive: true });
     document.documentElement.addEventListener("mouseleave", onLeave);
 
     let raf;
@@ -119,17 +141,20 @@ export default function FloatingMedia() {
       last = now;
 
       // Sin cursor (o en móvil sin tocar) el campo se mece solo
-      const tx = hasPointer ? target.x : Math.sin(now / 4200) * 0.35;
-      const ty = hasPointer ? target.y : Math.cos(now / 5300) * 0.25;
+      // En pantallas pequeñas el vaivén es más amplio para que se note
+      const amp = small ? 0.7 : 0.35;
+      const tx = hasPointer ? target.x : Math.sin(now / 4200) * amp;
+      const ty = hasPointer ? target.y : Math.cos(now / 5300) * amp * 0.7;
 
       const k = 1 - Math.exp(-FOLLOW * dt);
       cur.x += (tx - cur.x) * k;
       cur.y += (ty - cur.y) * k;
 
-      const pan = Math.min(window.innerWidth, window.innerHeight) * PAN;
+      const pan = Math.min(window.innerWidth, window.innerHeight) * PAN * MOTION;
+      const tilt = TILT * MOTION;
       world.style.transform =
         `translate3d(${-cur.x * pan}px, ${-cur.y * pan}px, 0) ` +
-        `rotateX(${-cur.y * TILT}deg) rotateY(${cur.x * TILT}deg)`;
+        `rotateX(${-cur.y * tilt}deg) rotateY(${cur.x * tilt}deg)`;
 
       raf = requestAnimationFrame(tick);
     };
@@ -138,9 +163,12 @@ export default function FloatingMedia() {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerdown", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
       document.documentElement.removeEventListener("mouseleave", onLeave);
     };
-  }, []);
+  }, [small]);
 
   // --- Solo se reproducen unos pocos videos a la vez ---
   useEffect(() => {

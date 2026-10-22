@@ -55,6 +55,7 @@
   50% { transform: translate3d(var(--dx), var(--dy), 0) rotate(calc(var(--r) * -1)); }
 }
 
+/* Con "reducir movimiento": el flote es más lento, no desaparece */
 @media (prefers-reduced-motion: reduce) {
-  .fm-bob { animation: fm-reveal 0.6s ease-out var(--delay) forwards; }
+  .fm-bob { animation-duration: 1.2s, calc(var(--dur) * 1.8); }
 }
