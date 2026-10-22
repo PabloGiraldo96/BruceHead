@@ -1,0 +1,2 @@
+Pon aqui el archivo Gato.glb exportado desde Blender.
+Ruta final: public/models/Gato.glb
