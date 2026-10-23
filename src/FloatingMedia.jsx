@@ -3,15 +3,23 @@ import { MEDIA } from "./media";
 import "./FloatingMedia.css";
 
 // ----- Ajustes -----
-const COUNT_DESKTOP = 30; // cuántas piezas flotan en total
-const COUNT_MOBILE = 16;
-const MAX_VIDEOS_PLAYING = 4; // videos que se reproducen a la vez
+const COUNT_DESKTOP = 90; // cuántas piezas flotan en total
+const COUNT_MOBILE = 40;
+const MAX_VIDEOS_PLAYING = 50; // videos que se reproducen a la vez
 const PERSPECTIVE = 900; // px; debe coincidir con el CSS
 const Z_MIN = -650; // lo más lejano
-const Z_MAX = 180; // lo más cercano
+const Z_MAX = 480; // lo más cercano
 const PAN = 0.22; // cuánto se desplaza el campo con el cursor
 const TILT = 7; // grados de inclinación del campo
 const FOLLOW = 3.5; // suavizado: más alto = sigue el cursor más rápido
+
+// --- Aparición aleatoria ---
+const REVEAL_WINDOW = 10; // segundos en los que van apareciendo todas (cada una en un momento al azar)
+const RECYCLE = false; // true = después de un rato se desvanecen y vuelven a salir, sin parar
+const ON_MIN = 10; // segundos que permanece visible cada pieza (solo con RECYCLE)
+const ON_MAX = 24;
+const OFF_MIN = 3; // segundos que permanece oculta antes de volver (solo con RECYCLE)
+const OFF_MAX = 10;
 
 // Si el sistema pide "reducir movimiento" no lo apagamos: lo suavizamos a la mitad.
 const MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0.5 : 1;
@@ -52,9 +60,9 @@ export default function FloatingMedia() {
   const worldRef = useRef(null);
   const small = useSmallScreen();
 
-  // --- Reparto de las piezas en 3D ---
+  // --- Reparto de las piezas en 3D (fijo: la posición no cambia entre visitas) ---
   const items = useMemo(() => {
-    const rnd = rng(23);
+    const rnd = rng(32);
     const count = small ? COUNT_MOBILE : COUNT_DESKTOP;
 
     // Repite los archivos hasta llenar y los mezcla (los videos no quedan juntos)
@@ -69,10 +77,6 @@ export default function FloatingMedia() {
     const span = 124; // de -62 a +62 (vw / vh)
     const cells = shuffle(
       Array.from({ length: cols * rows }, (_, i) => i),
-      rnd
-    );
-    const order = shuffle(
-      Array.from({ length: count }, (_, i) => i),
       rnd
     );
 
@@ -100,7 +104,8 @@ export default function FloatingMedia() {
           "--dx": `${Math.round(rnd() * 24 - 12)}px`,
           "--dy": `${Math.round(rnd() * 32 - 16)}px`,
           "--dur": `${(7 + rnd() * 6).toFixed(1)}s`,
-          "--delay": `${(order[i] * 0.12).toFixed(2)}s`,
+          // Retraso negativo: cada pieza arranca su flote en un punto distinto del ciclo
+          "--delay": `-${(rnd() * 12).toFixed(1)}s`,
         },
       };
     });
@@ -170,22 +175,36 @@ export default function FloatingMedia() {
     };
   }, [small]);
 
-  // --- Solo se reproducen unos pocos videos a la vez ---
+  // --- Aparición aleatoria + videos (comparten estado: solo suena lo que se ve) ---
   useEffect(() => {
-    const vids = layerRef.current?.querySelectorAll("video");
-    if (!vids || !vids.length) return;
+    const layer = layerRef.current;
+    if (!layer) return;
 
-    const visible = new Set(); // en pantalla
-    const playing = new Set(); // reproduciéndose
+    const timers = new Set();
+    const later = (fn, ms) => {
+      const id = setTimeout(() => {
+        timers.delete(id);
+        fn();
+      }, ms);
+      timers.add(id);
+    };
+    const randIn = (a, b) => a + Math.random() * (b - a);
+
+    // Videos: se reproducen solo los que están en pantalla Y ya aparecieron
+    const vids = [...layer.querySelectorAll("video")];
+    const inView = new Set();
+    const playing = new Set();
+    const isOn = (v) => v.closest(".fm-item")?.classList.contains("on");
 
     const sync = () => {
+      const want = [...inView].filter(isOn);
       for (const v of [...playing]) {
-        if (!visible.has(v)) {
+        if (!want.includes(v)) {
           v.pause();
           playing.delete(v);
         }
       }
-      for (const v of visible) {
+      for (const v of want) {
         if (playing.size >= MAX_VIDEOS_PLAYING) break;
         if (!playing.has(v)) {
           v.play().catch(() => {});
@@ -197,8 +216,8 @@ export default function FloatingMedia() {
     const io = new IntersectionObserver(
       (entries) => {
         for (const en of entries) {
-          if (en.isIntersecting) visible.add(en.target);
-          else visible.delete(en.target);
+          if (en.isIntersecting) inView.add(en.target);
+          else inView.delete(en.target);
         }
         sync();
       },
@@ -208,19 +227,45 @@ export default function FloatingMedia() {
 
     // Cada 2,5 s rota cuál se reproduce, para que todos tengan su turno
     const rotate = setInterval(() => {
-      if (visible.size <= MAX_VIDEOS_PLAYING) return;
+      const want = [...inView].filter(isOn);
+      if (want.length <= MAX_VIDEOS_PLAYING) return;
       const oldest = playing.values().next().value;
       if (!oldest) return;
-      visible.delete(oldest);
-      visible.add(oldest); // pasa al final de la cola
+      inView.delete(oldest);
+      inView.add(oldest); // pasa al final de la cola
       oldest.pause();
       playing.delete(oldest);
       sync();
-    }, 2500);
+    }, 250);
+
+    // Aparición: cada pieza se enciende (clase "on") en un momento al azar
+    const els = [...layer.querySelectorAll(".fm-item")];
+    const show = (el) => {
+      el.classList.add("on");
+      sync();
+    };
+    const hide = (el) => {
+      el.classList.remove("on");
+      sync();
+    };
+    const cycle = (el) => {
+      show(el);
+      if (!RECYCLE) return;
+      later(() => {
+        hide(el);
+        later(() => cycle(el), randIn(OFF_MIN, OFF_MAX) * 1000);
+      }, randIn(ON_MIN, ON_MAX) * 1000);
+    };
+
+    // La primera sale al instante; el resto, repartidas al azar en REVEAL_WINDOW
+    const starts = els.map(() => Math.random() * REVEAL_WINDOW);
+    const first = starts.length ? Math.min(...starts) : 0;
+    els.forEach((el, i) => later(() => cycle(el), (starts[i] - first) * 1000));
 
     return () => {
-      io.disconnect();
+      timers.forEach(clearTimeout);
       clearInterval(rotate);
+      io.disconnect();
       vids.forEach((v) => v.pause());
     };
   }, [items]);

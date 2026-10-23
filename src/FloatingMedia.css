@@ -19,7 +19,7 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: min(var(--w), 260px);
+  width: min(var(--w), 250px);
   opacity: var(--o);
   pointer-events: none;
   user-select: none;
@@ -31,7 +31,7 @@
 .fm-bob {
   opacity: 0;
   animation:
-    fm-reveal 1.2s ease-out var(--delay) forwards,
+    fm-reveal 5.2s ease-out var(--delay) forwards,
     fm-drift var(--dur) ease-in-out var(--delay) infinite;
 }
 
@@ -57,5 +57,5 @@
 
 /* Con "reducir movimiento": el flote es más lento, no desaparece */
 @media (prefers-reduced-motion: reduce) {
-  .fm-bob { animation-duration: 1.2s, calc(var(--dur) * 1.8); }
+  .fm-bob { animation-duration: 3, calc(var(--dur) * 1.8); }
 }

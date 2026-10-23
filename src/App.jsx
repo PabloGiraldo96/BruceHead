@@ -53,22 +53,16 @@ const start = () => setPhase("diving");
 
       {!EDIT && phase === "idle" && (
         <div className="ui bottom">
-          <p className="hint">Arrastra para girarlo</p>
+          <p className="hint">Lo puedes arrastrar</p>
           <button className="btn" onClick={start}>
-            Mirarlo a los ojos
+            COMENZAR
           </button>
         </div>
       )}
 
-      {!EDIT && phase === "diving" && (
-        <button className="btn skip" onClick={toBlack}>
-          Saltar
-        </button>
-      )}
-
       {!EDIT && phase === "media" && (
         <button className="btn replay" onClick={restart}>
-          Volver a empezar
+          Reiniciar
         </button>
       )}
     </>

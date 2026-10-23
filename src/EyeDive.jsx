@@ -4,11 +4,11 @@ import * as THREE from "three";
 import { hasState, sheet } from "./theatre";
 
 // ----- Ajustes -----
-const FRONT = new THREE.Vector3(0, 0, 1); // hacia dónde mira la cara. Si el gato
+const FRONT = new THREE.Vector3(1, 0, 2); // hacia dónde mira la cara. Si el gato
                                           // aparece de espaldas, usa (0, 0, -1).
-const DIVE_EYE = "eyeL";                  // "eyeL" o "eyeR"
-const DIVE_SECONDS = 4.5;
-const END_DISTANCE = 0.06;                // qué tan cerca termina del ojo
+const DIVE_EYE = "eyeR";                  // "eyeL" o "eyeR"
+const DIVE_SECONDS = 3.3;
+const END_DISTANCE = 0.6;                // qué tan cerca termina del ojo
 
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
